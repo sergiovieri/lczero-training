@@ -50,6 +50,13 @@ class ApplyPolicyMap(tf.keras.layers.Layer):
         h_conv_pol_flat = tf.reshape(inputs, [-1, 80*8*8])
         return tf.matmul(h_conv_pol_flat, tf.cast(self.fc1, h_conv_pol_flat.dtype))
 
+def compute_memory():
+    from tensorflow.python.client import device_lib
+    local_device_protos = device_lib.list_local_devices()
+    for device in local_device_protos:
+        if device.device_type == 'GPU':
+            return device.memory_limit // 1024 // 1024 - 1024
+
 class TFProcess:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -115,7 +122,9 @@ class TFProcess:
 
         gpus = tf.config.experimental.list_physical_devices('GPU')
         tf.config.experimental.set_visible_devices(gpus[self.cfg['gpu']], 'GPU')
-        tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], True)
+        tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], False)
+        tf.config.experimental.set_virtual_device_configuration(gpus[self.cfg['gpu']],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=compute_memory())])
         if self.model_dtype == tf.float16:
             tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
 
@@ -356,13 +365,14 @@ class TFProcess:
         with tf.GradientTape() as tape:
             policy, value = self.model(x, training=True)
             policy_loss = self.policy_loss_fn(y, policy)
+            reg_loss_w = self.cfg['training'].get('reg_loss_weight', 1)
             reg_term = sum(self.model.losses)
             if self.wdl:
                 value_loss = self.value_loss_fn(self.qMix(z, q), value)
-                total_loss = self.lossMix(policy_loss, value_loss) + reg_term
+                total_loss = self.lossMix(policy_loss, value_loss) + reg_term * reg_loss_w
             else:
                 mse_loss = self.mse_loss_fn(self.qMix(z, q), value)
-                total_loss = self.lossMix(policy_loss, mse_loss) + reg_term
+                total_loss = self.lossMix(policy_loss, mse_loss) + reg_term * reg_loss_w
             if self.loss_scale != 1:
                 total_loss = self.optimizer.get_scaled_loss(total_loss)
         if self.wdl:
@@ -431,7 +441,7 @@ class TFProcess:
                 self.avg_value_loss.append(value_loss)
             self.avg_mse_loss.append(mse_loss)
             self.avg_reg_term.append(reg_term)
-        # Gradients of batch splits are summed, not averaged like usual, so need to scale lr accordingly to correct for this.        
+        # Gradients of batch splits are summed, not averaged like usual, so need to scale lr accordingly to correct for this.
         self.active_lr = self.lr / batch_splits
         if self.loss_scale != 1:
             grads = self.optimizer.get_unscaled_gradients(grads)

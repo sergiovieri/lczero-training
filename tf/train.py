@@ -127,6 +127,8 @@ def main(cmd):
     cfg = yaml.safe_load(cmd.cfg.read())
     print(yaml.dump(cfg, default_flow_style=False))
 
+    tfprocess = TFProcess(cfg)
+
     num_chunks = cfg['dataset']['num_chunks']
     allow_less = cfg['dataset'].get('allow_less_chunks', False)
     train_ratio = cfg['dataset']['train_ratio']
@@ -158,7 +160,6 @@ def main(cmd):
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
-    tfprocess = TFProcess(cfg)
 
     if experimental_parser:
         train_dataset = tf.data.Dataset.from_tensor_slices(train_chunks).shuffle(len(train_chunks)).repeat()\
@@ -171,7 +172,7 @@ def main(cmd):
                 workers=train_workers)
         train_dataset = tf.data.Dataset.from_generator(
             train_parser.parse, output_types=(tf.string, tf.string, tf.string, tf.string))
-        train_dataset = train_dataset.map(ChunkParser.parse_function)
+        train_dataset = train_dataset.map(ChunkParser.parse_function, num_parallel_calls=4)
         train_dataset = train_dataset.prefetch(4)
 
     shuffle_size = int(shuffle_size*(1.0-train_ratio))
@@ -186,7 +187,7 @@ def main(cmd):
                 workers=test_workers)
         test_dataset = tf.data.Dataset.from_generator(
             test_parser.parse, output_types=(tf.string, tf.string, tf.string, tf.string))
-        test_dataset = test_dataset.map(ChunkParser.parse_function)
+        test_dataset = test_dataset.map(ChunkParser.parse_function, num_parallel_calls=4)
         test_dataset = test_dataset.prefetch(4)
 
     validation_dataset = None
