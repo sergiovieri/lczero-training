@@ -156,7 +156,8 @@ class TFProcess:
         self.optimizer = tf.keras.optimizers.SGD(learning_rate=lambda: self.active_lr, momentum=0.9, nesterov=True)
         self.orig_optimizer = self.optimizer
         if self.loss_scale != 1:
-            self.optimizer = tf.keras.mixed_precision.experimental.LossScaleOptimizer(self.optimizer, self.loss_scale)
+            self.optimizer = tf.keras.mixed_precision.experimental.LossScaleOptimizer(self.optimizer,
+                    tf.train.experimental.DynamicLossScale(increment_period=100))
         def correct_policy(target, output):
             output = tf.cast(output, tf.float32)
             # Calculate loss on policy head
@@ -472,6 +473,8 @@ class TFProcess:
                 steps, self.lr, avg_policy_loss, avg_value_loss, avg_mse_loss, avg_reg_term,
                 pol_loss_w * avg_policy_loss + val_loss_w * avg_value_loss + avg_reg_term,
                 speed))
+            if self.loss_scale != 1:
+                print(self.optimizer.loss_scale())
 
             after_weights = self.read_weights()
             with self.train_writer.as_default():
