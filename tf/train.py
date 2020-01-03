@@ -129,6 +129,10 @@ def main(cmd):
 
     tfprocess = TFProcess(cfg)
 
+    trainstop_path = cfg['training'].get('trainstop_path', None)
+    if trainstop_path and os.path.exists(trainstop_path):
+        os.remove(trainstop_path)
+
     num_chunks = cfg['dataset']['num_chunks']
     allow_less = cfg['dataset'].get('allow_less_chunks', False)
     train_ratio = cfg['dataset']['train_ratio']
