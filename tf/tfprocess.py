@@ -356,8 +356,11 @@ class TFProcess:
         # which is not a multiple of total_steps.
         steps = self.global_step.read_value()
         total_steps = self.cfg['training']['total_steps']
-        for _ in range(steps % total_steps, total_steps):
-            self.process_v2(batch_size, test_batches, batch_splits=batch_splits)
+        try:
+            for _ in range(steps % total_steps, total_steps):
+                self.process_v2(batch_size, test_batches, batch_splits=batch_splits)
+        except Exception as e:
+            print('Exception', e)
 
     @tf.function()
     def read_weights(self):
@@ -520,6 +523,11 @@ class TFProcess:
             self.save_leelaz_weights_v2(leela_path)
             if self.swa_enabled:
                 self.save_swa_weights_v2(swa_path)
+
+            trainstop_path = self.cfg['training'].get('trainstop_path', None)
+            if trainstop_path and os.path.exists(trainstop_path):
+                print('Trainstop detected')
+                raise Exception
 
     def calculate_swa_summaries_v2(self, test_batches, steps):
         backup = self.read_weights()
