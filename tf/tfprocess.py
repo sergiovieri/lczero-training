@@ -65,6 +65,8 @@ class TFProcess:
         self.root_dir = os.path.join(
             self.cfg['training']['path'], self.cfg['name'])
 
+        self.trainstop_path = self.cfg['training'].get('trainstop_path', None)
+
         # Network structure
         self.RESIDUAL_FILTERS = self.cfg['model']['filters']
         self.RESIDUAL_BLOCKS = self.cfg['model']['residual_blocks']
@@ -512,7 +514,8 @@ class TFProcess:
 
         # Save session and weights at end, and also optionally every 'checkpoint_steps'.
         if steps % self.cfg['training']['total_steps'] == 0 or (
-                'checkpoint_steps' in self.cfg['training'] and steps % self.cfg['training']['checkpoint_steps'] == 0):
+                'checkpoint_steps' in self.cfg['training'] and steps % self.cfg['training']['checkpoint_steps'] == 0) or (
+                self.trainstop_path and os.path.exists(self.trainstop_path):
             evaled_steps = steps.numpy()
             self.manager.save(checkpoint_number=evaled_steps)
             print("Model saved in file: {}".format(self.manager.latest_checkpoint))
@@ -524,8 +527,7 @@ class TFProcess:
             if self.swa_enabled:
                 self.save_swa_weights_v2(swa_path)
 
-            trainstop_path = self.cfg['training'].get('trainstop_path', None)
-            if trainstop_path and os.path.exists(trainstop_path):
+            if self.trainstop_path and os.path.exists(self.trainstop_path):
                 print('Trainstop detected')
                 raise Exception
 
