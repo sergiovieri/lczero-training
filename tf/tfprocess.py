@@ -20,6 +20,7 @@ import numpy as np
 import os
 import random
 import tensorflow as tf
+import tensorflow_addons as tfa
 import time
 import bisect
 import lc0_az_policy_map
@@ -160,6 +161,11 @@ class TFProcess:
         if self.loss_scale != 1:
             self.optimizer = tf.keras.mixed_precision.experimental.LossScaleOptimizer(self.optimizer,
                     tf.train.experimental.DynamicLossScale(increment_period=100))
+        if self.cfg['training'].get('lookahead_optimizer', False):
+            if self.loss_scale != 1:
+                raise ValueError('Cannot use lookahead with fp16')
+            print('Using lookahead optimizer')
+            self.optimizer = tfa.optimizers.Lookahead(self.optimizer)
         def correct_policy(target, output):
             output = tf.cast(output, tf.float32)
             # Calculate loss on policy head
