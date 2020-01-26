@@ -116,6 +116,7 @@ class TFProcess:
         self.net.set_valueformat(self.VALUE_HEAD)
 
         self.swa_enabled = self.cfg['training'].get('swa', False)
+        self.rswa_enabled = self.cfg['training'].get('rswa', False)
 
         # Limit momentum of SWA exponential average to 1 - 1/(swa_max_n + 1)
         self.swa_max_n = self.cfg['training'].get('swa_max_n', 0)
@@ -505,6 +506,9 @@ class TFProcess:
         if self.swa_enabled and steps % self.cfg['training']['swa_steps'] == 0:
             self.update_swa_v2()
 
+        if self.rswa_enabled and (steps - 1) % self.cfg['training']['rswa_steps'] == 0:
+            self.update_rswa_v2()
+
         # Calculate test values every 'test_steps', but also ensure there is
         # one at the final step so the delta to the first step can be calculted.
         if steps % self.cfg['training']['test_steps'] == 0 or steps % self.cfg['training']['total_steps'] == 0:
@@ -676,6 +680,10 @@ class TFProcess:
         for (w, swa) in zip(self.model.weights, self.swa_weights):
             swa.assign(swa.read_value() * (num / (num + 1.)) + w.read_value() * (1. / (num + 1.)))
         self.swa_count.assign(min(num + 1., self.swa_max_n))
+
+    def update_rswa_v2(self):
+        for (w, swa) in zip(self.model.weights, self.swa_weights):
+            w.assign(swa.read_value())
 
     def save_swa_weights_v2(self, filename):
         backup = self.read_weights()
