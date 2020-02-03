@@ -126,15 +126,19 @@ class TFProcess:
         self.renorm_max_d = self.cfg['training'].get('renorm_max_d', 0)
         self.renorm_momentum = self.cfg['training'].get('renorm_momentum', 0.99)
 
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-        memory_limit = self.cfg['training'].get('memory_limit', 0)
-        if memory_limit == 0:
-          memory_limit = compute_memory(gpus[self.cfg['gpu']])
-        print('Memory limit:', memory_limit)
-        tf.config.experimental.set_visible_devices(gpus[self.cfg['gpu']], 'GPU')
-        tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], False)
-        tf.config.experimental.set_virtual_device_configuration(gpus[self.cfg['gpu']],
-            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=memory_limit)])
+        try:
+            gpus = tf.config.experimental.list_physical_devices('GPU')
+            memory_limit = self.cfg['training'].get('memory_limit', 0)
+            if memory_limit == 0:
+                memory_limit = compute_memory(gpus[self.cfg['gpu']])
+            print('Memory limit:', memory_limit)
+            tf.config.experimental.set_visible_devices(gpus[self.cfg['gpu']], 'GPU')
+            tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], False)
+            tf.config.experimental.set_virtual_device_configuration(gpus[self.cfg['gpu']],
+                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=memory_limit)])
+        except ValueError as e:
+            print('GPU init error:', e)
+
         if self.model_dtype == tf.float16:
             tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
 
