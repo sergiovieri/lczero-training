@@ -75,17 +75,15 @@ class TFProcess:
         self.policy_channels = self.cfg['model'].get('policy_channels', 32)
         self.value_channels = self.cfg['model'].get('value_channels', 32)
         precision = self.cfg['training'].get('precision', 'single')
-        loss_scale = self.cfg['training'].get('loss_scale', 128)
+        self.loss_scale = self.cfg['training'].get('loss_scale', False)
 
         if precision == 'single':
             self.model_dtype = tf.float32
         elif precision == 'half':
             self.model_dtype = tf.float16
+            self.loss_scale = True
         else:
             raise ValueError("Unknown precision: {}".format(precision))
-
-        # Scale the loss to prevent gradient underflow
-        self.loss_scale = 1 if self.model_dtype == tf.float32 else loss_scale
 
         policy_head = self.cfg['model'].get('policy', 'convolution')
         value_head  = self.cfg['model'].get('value', 'wdl')
@@ -167,11 +165,12 @@ class TFProcess:
         self.active_lr = 0.01
         self.optimizer = tf.keras.optimizers.SGD(learning_rate=lambda: self.active_lr, momentum=0.9, nesterov=True)
         self.orig_optimizer = self.optimizer
-        if self.loss_scale != 1:
+        if self.loss_scale:
+            print('Using dynamic loss scale')
             self.optimizer = tf.keras.mixed_precision.experimental.LossScaleOptimizer(self.optimizer,
                     tf.train.experimental.DynamicLossScale(increment_period=100))
         if self.cfg['training'].get('lookahead_optimizer', False):
-            if self.loss_scale != 1:
+            if self.loss_scale:
                 raise ValueError('Cannot use lookahead with fp16')
             print('Using lookahead optimizer')
             self.optimizer = tfa.optimizers.Lookahead(self.optimizer)
@@ -396,7 +395,7 @@ class TFProcess:
             else:
                 mse_loss = self.mse_loss_fn(self.qMix(z, q), value)
                 total_loss = self.lossMix(policy_loss, mse_loss) + reg_term * reg_loss_w
-            if self.loss_scale != 1:
+            if self.loss_scale:
                 total_loss = self.optimizer.get_scaled_loss(total_loss)
         if self.wdl:
             mse_loss = self.mse_loss_fn(self.qMix(z, q), value)
@@ -466,7 +465,7 @@ class TFProcess:
             self.avg_reg_term.append(reg_term)
         # Gradients of batch splits are summed, not averaged like usual, so need to scale lr accordingly to correct for this.
         self.active_lr = self.lr / batch_splits
-        if self.loss_scale != 1:
+        if self.loss_scale:
             grads = self.optimizer.get_unscaled_gradients(grads)
         max_grad_norm = self.cfg['training'].get('max_grad_norm', 10000.0) * batch_splits
         grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
@@ -493,8 +492,8 @@ class TFProcess:
                 steps, self.lr, avg_policy_loss, avg_value_loss, avg_mse_loss, avg_reg_term,
                 pol_loss_w * avg_policy_loss + val_loss_w * avg_value_loss + avg_reg_term,
                 speed))
-            if self.loss_scale != 1:
-                print(self.optimizer.loss_scale())
+            if self.loss_scale:
+                print('Loss scale:', self.optimizer.loss_scale())
 
             after_weights = self.read_weights()
             with self.train_writer.as_default():
