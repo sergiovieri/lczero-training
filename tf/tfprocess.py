@@ -72,6 +72,8 @@ class TFProcess:
         self.root_dir = os.path.join(self.cfg['training']['path'],
                                      self.cfg['name'])
 
+        self.trainstop_path = self.cfg['training'].get('trainstop_path', None)
+
         # Network structure
         self.RESIDUAL_FILTERS = self.cfg['model']['filters']
         self.RESIDUAL_BLOCKS = self.cfg['model']['residual_blocks']
@@ -475,10 +477,13 @@ class TFProcess:
         # which is not a multiple of total_steps.
         steps = self.global_step.read_value()
         total_steps = self.cfg['training']['total_steps']
-        for _ in range(steps % total_steps, total_steps):
-            self.process_v2(batch_size,
-                            test_batches,
-                            batch_splits=batch_splits)
+        try:
+            for _ in range(steps % total_steps, total_steps):
+                self.process_v2(batch_size,
+                                test_batches,
+                                batch_splits=batch_splits)
+        except Exception as e:
+            print('Exception', e)
 
     @tf.function()
     def read_weights(self):
@@ -668,7 +673,8 @@ class TFProcess:
         # Save session and weights at end, and also optionally every 'checkpoint_steps'.
         if steps % self.cfg['training']['total_steps'] == 0 or (
                 'checkpoint_steps' in self.cfg['training']
-                and steps % self.cfg['training']['checkpoint_steps'] == 0):
+                and steps % self.cfg['training']['checkpoint_steps'] == 0) or (
+                self.trainstop_path and os.path.exists(self.trainstop_path)):
             evaled_steps = steps.numpy()
             self.manager.save(checkpoint_number=evaled_steps)
             print("Model saved in file: {}".format(
@@ -680,6 +686,10 @@ class TFProcess:
             self.save_leelaz_weights_v2(leela_path)
             if self.swa_enabled:
                 self.save_swa_weights_v2(swa_path)
+
+            if self.trainstop_path and os.path.exists(self.trainstop_path):
+                print('Trainstop detected')
+                raise Exception
 
     def calculate_swa_summaries_v2(self, test_batches, steps):
         backup = self.read_weights()
