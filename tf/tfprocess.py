@@ -79,6 +79,7 @@ class TFProcess:
         self.RESIDUAL_BLOCKS = self.cfg['model']['residual_blocks']
         self.SE_ratio = self.cfg['model']['se_ratio']
         self.policy_channels = self.cfg['model'].get('policy_channels', 32)
+        self.value_channels = self.cfg['model'].get('value_channels', 32)
         precision = self.cfg['training'].get('precision', 'single')
         loss_scale = self.cfg['training'].get('loss_scale', 128)
         self.virtual_batch_size = self.cfg['model'].get(
@@ -1055,7 +1056,7 @@ class TFProcess:
         # Value head
         conv_val = self.conv_block_v2(flow,
                                       filter_size=1,
-                                      output_channels=32,
+                                      output_channels=self.value_channels,
                                       name='value')
         h_conv_val_flat = tf.keras.layers.Flatten()(conv_val)
         h_fc2 = tf.keras.layers.Dense(128,
