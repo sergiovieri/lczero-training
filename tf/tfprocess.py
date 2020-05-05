@@ -57,6 +57,13 @@ class ApplyPolicyMap(tf.keras.layers.Layer):
         return tf.matmul(h_conv_pol_flat,
                          tf.cast(self.fc1, h_conv_pol_flat.dtype))
 
+def compute_memory(gpu):
+    from tensorflow.python.client import device_lib
+    local_device_protos = device_lib.list_local_devices()
+    for device in local_device_protos:
+        if device.device_type == 'GPU' and device.name[-2:] == gpu.name[-2:]:
+            return device.memory_limit // 1024 // 1024 - 1024
+    assert False
 
 class TFProcess:
     def __init__(self, cfg):
@@ -152,10 +159,19 @@ class TFProcess:
         self.renorm_momentum = self.cfg['training'].get(
             'renorm_momentum', 0.99)
 
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-        tf.config.experimental.set_visible_devices(gpus[self.cfg['gpu']],
-                                                   'GPU')
-        tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], True)
+        try:
+            gpus = tf.config.experimental.list_physical_devices('GPU')
+            memory_limit = self.cfg['training'].get('memory_limit', 0)
+            if memory_limit == 0:
+                memory_limit = compute_memory(gpus[self.cfg['gpu']])
+            print('Memory limit:', memory_limit)
+            tf.config.experimental.set_visible_devices(gpus[self.cfg['gpu']], 'GPU')
+            tf.config.experimental.set_memory_growth(gpus[self.cfg['gpu']], False)
+            tf.config.experimental.set_virtual_device_configuration(gpus[self.cfg['gpu']],
+                    [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=memory_limit)])
+        except ValueError as e:
+            print('GPU init error:', e)
+
         if self.model_dtype == tf.float16:
             tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
 

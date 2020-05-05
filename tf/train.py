@@ -256,6 +256,8 @@ def main(cmd):
     cfg = yaml.safe_load(cmd.cfg.read())
     print(yaml.dump(cfg, default_flow_style=False))
 
+    tfprocess = TFProcess(cfg)
+
     num_chunks = cfg['dataset']['num_chunks']
     allow_less = cfg['dataset'].get('allow_less_chunks', False)
     train_ratio = cfg['dataset']['train_ratio']
@@ -291,7 +293,6 @@ def main(cmd):
     root_dir = os.path.join(cfg['training']['path'], cfg['name'])
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
-    tfprocess = TFProcess(cfg)
     experimental_reads = max(2, mp.cpu_count() - 2) // 2
     extractor = select_extractor(tfprocess.INPUT_MODE)
 
