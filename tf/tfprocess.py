@@ -65,6 +65,10 @@ def compute_memory(gpu):
             return device.memory_limit // 1024 // 1024 - 1024
     assert False
 
+def partial_stop(flow, allow):
+    return allow * flow + tf.stop_gradient((1.0 - allow) * flow)
+
+
 class TFProcess:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -1079,7 +1083,7 @@ class TFProcess:
 
         # Moves left head
         if self.moves_left:
-            conv_mov = self.conv_block_v2(flow,
+            conv_mov = self.conv_block_v2(partial_stop(flow, self.cfg['training']['moves_left_gradient_flow']),
                                           filter_size=1,
                                           output_channels=8,
                                           name='moves_left')
