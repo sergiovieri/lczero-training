@@ -323,6 +323,7 @@ class TFProcess:
 
         pol_loss_w = self.cfg['training']['policy_loss_weight']
         val_loss_w = self.cfg['training']['value_loss_weight']
+        self.reg_loss_w = self.cfg['training'].get('reg_loss_weight', 1.0)
 
         if self.moves_left:
             moves_loss_w = self.cfg['training']['moves_left_loss_weight']
@@ -515,7 +516,7 @@ class TFProcess:
                 moves_left_loss = tf.constant(0.)
 
             total_loss = self.lossMix(policy_loss, value_loss,
-                                      moves_left_loss) + reg_term
+                                      moves_left_loss) + reg_term * self.reg_loss_w
             if self.loss_scale != 1:
                 total_loss = self.optimizer.get_scaled_loss(total_loss)
         if self.wdl:
